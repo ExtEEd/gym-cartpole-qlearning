@@ -5,6 +5,8 @@ import gym
 import math
 from time import sleep
 import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
 
 # observation = [ cart position, cart velocity, pole angle, pole velocity at tip ]
 # Из документации: cart position: -2.4 - +2.4
@@ -49,13 +51,59 @@ def q_index(observation, num_buckets):
     return np.int(index)
 
 
+# Графическое представление действий в зависимости от состояния
+def show_q_table(q_table, num_buckets):
+    prepared_data = []
+    total_index = np.prod(num_buckets)
+    for i1 in range(num_buckets[0]):
+        for i2 in range(num_buckets[1]):
+            for i3 in range(num_buckets[2]):
+                for i4 in range(num_buckets[3]):
+                    index = i1 * total_index / num_buckets[0] + i2 * total_index / num_buckets[0] / num_buckets[1] + \
+                            i3 * total_index / num_buckets[0] / num_buckets[1] / num_buckets[2] + \
+                            i4 * total_index / num_buckets[0] / num_buckets[1] / num_buckets[2] / num_buckets[3]
+                    index = np.int(index)
+                    prepared_data.append([i1, i2, i3, i4, np.argmax(q_table[index])])
+
+    data = pd.DataFrame(prepared_data, columns=['CartPos', 'CartVel', 'PoleAngle', 'PoleAngVel', 'Action'])
+
+    def andrews_curve(x, theta):
+        curve = list()
+        for th in theta:
+            x1 = np.float(x[0]) / np.sqrt(2)
+            x2 = np.float(x[1]) * np.sin(th)
+            x3 = np.float(x[2]) * np.cos(th)
+            x4 = np.float(x[3]) * np.sin(2. * th)
+            x5 = np.float(x[4]) * np.cos(2. * th)
+            curve.append(x1 + x2 + x3 + x4 + x5)
+        return curve
+
+    accuracy = 25
+    theta = np.linspace(-np.pi, np.pi, accuracy)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    ax.spines['left'].set_position('center')
+    ax.spines['bottom'].set_position('center')
+    ax.spines['right'].set_color('none')
+    ax.spines['top'].set_color('none')
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_ticks_position('left')
+    for index, s in data.iterrows():
+        if s[4] == 0:
+            plt.plot(theta, andrews_curve(s, theta), 'b')
+        else:
+            plt.plot(theta, andrews_curve(s, theta), 'r')
+    plt.show()
+
+
 gamma = 0.9             # поправочный коэффициент
 epsilon = 1.0           # начальное значение epsilon для применения epsilon-жадной стратегии
 epsilon_decay = 0.9999  # множитель значения epsilon для каждого шага
 epsilon_min = 0.1       # минимальное значение epsilon
 alpha = 0.05            # скорость обучения
 
-num_buckets = np.array([4, 4, 16, 8])  # Разбивка непрерывного пространства на дискретный набор состояний
+num_buckets = np.array([2, 2, 8, 4])  # Разбивка непрерывного пространства на дискретный набор состояний
 q_table = np.zeros((np.prod(num_buckets), env.action_space.n))  # Q-массив, инициализируется 0
 env._max_episode_steps = 500
 
@@ -96,7 +144,7 @@ for i in range(episodes + 1):
 
 score = 0
 observation = env.reset()
-for _ in range(501):
+for _ in range(200):
     env.render()
     st = q_index(observation, num_buckets)
     action = np.argmax(q_table[st])
@@ -109,3 +157,4 @@ for _ in range(501):
 
 env.close()
 print('Score=', score)
+show_q_table(q_table, num_buckets)
